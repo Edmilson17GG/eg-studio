@@ -231,10 +231,7 @@
       </div>
     </div>
     <div class="topbar-right">
-      <div class="api-input-wrap">
-        <input type="password" id="api-key-input" placeholder="Clé API Anthropic (sk-ant-...)" />
-        <button class="save-btn" onclick="saveApiKey()">Sauvegarder</button>
-      </div>
+
       <div class="status-pill">
         <div class="status-dot"></div>
         <span id="status-text">6 agents actifs</span>
@@ -502,22 +499,10 @@ Tu construis les process client (onboarding, brief, communication, livraison, su
 
 let currentAgent = null;
 let isTyping = false;
-let apiKey = localStorage.getItem('eg_api_key') || '';
+
 
 // ── INIT ──
-function initApiKey() {
-  if (apiKey) {
-    document.getElementById('api-key-input').value = apiKey;
-  }
-}
 
-function saveApiKey() {
-  apiKey = document.getElementById('api-key-input').value.trim();
-  if (!apiKey) return;
-  localStorage.setItem('eg_api_key', apiKey);
-  document.getElementById('status-text').textContent = '6 agents actifs ✓';
-  setTimeout(() => { document.getElementById('status-text').textContent = '6 agents actifs'; }, 2000);
-}
 
 // ── NAVIGATION ──
 function switchAgent(id) {
@@ -635,10 +620,10 @@ function scrollBottom() { const a = document.getElementById('chat-area'); a.scro
 
 // ── API CLAUDE ──
 async function callClaude(system, messages) {
-  if (!apiKey) { alert('Entre ta clé API Anthropic en haut.'); return null; }
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+  
+  const resp = await fetch('/api/chat', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, system, messages })
   });
   const data = await resp.json();
@@ -778,7 +763,7 @@ function autoResize(el) {
 }
 
 // ── START ──
-initApiKey();
+
 switchAgent('home');
 </script>
 </body>
