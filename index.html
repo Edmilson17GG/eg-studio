@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EG Studio — Command Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #0a0a0a; --surface: #111111; --surface2: #1a1a1a;
+    --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.12);
+    --text: #f0ede8; --muted: #888580;
+    --accent: #E07B39; --accent-dim: rgba(224,123,57,0.12); --accent-dim2: rgba(224,123,57,0.22);
+    --green: #3ecf8e; --green-dim: rgba(62,207,142,0.1);
+    --red: #f87171; --red-dim: rgba(248,113,113,0.1);
+    --gold: #fbbf24; --gold-dim: rgba(251,191,36,0.1);
+    --font: 'DM Sans', sans-serif; --mono: 'DM Mono', monospace;
+  }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); }
+  .app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+  /* TOPBAR */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 24px; border-bottom: 1px solid var(--border);
+    flex-shrink: 0; background: var(--bg);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-mark {
+    width: 32px; height: 32px; background: var(--accent); border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 13px; color: #fff;
+  }
+  .brand-name { font-size: 15px; font-weight: 500; letter-spacing: -0.3px; }
+  .brand-sub { font-size: 10px; color: var(--muted); font-family: var(--mono); letter-spacing: 0.06em; }
+  .topbar-right { display: flex; align-items: center; gap: 12px; }
+  .status-pill {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--green-dim); border: 1px solid rgba(62,207,142,0.2);
+    border-radius: 20px; padding: 5px 12px;
+    font-size: 11px; color: var(--green); font-family: var(--mono);
+  }
+  .status-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+  .api-input-wrap { display: flex; gap: 6px; align-items: center; }
+  .api-input-wrap input {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 6px; padding: 5px 10px; color: var(--text);
+    font-family: var(--mono); font-size: 11px; outline: none; width: 220px;
+  }
+  .api-input-wrap input:focus { border-color: var(--accent); }
+  .save-btn {
+    background: var(--accent); color: #fff; border: none; border-radius: 6px;
+    padding: 5px 12px; font-size: 11px; cursor: pointer; font-family: var(--font);
+    font-weight: 500; transition: opacity 0.15s;
+  }
+  .save-btn:hover { opacity: 0.85; }
+
+  /* LAYOUT */
+  .layout { display: flex; flex: 1; overflow: hidden; }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 220px; flex-shrink: 0; border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; padding: 16px 0;
+    overflow-y: auto; background: var(--bg);
+  }
+  .sidebar-section { padding: 0 12px; margin-bottom: 6px; }
+  .sidebar-label {
+    font-size: 10px; font-family: var(--mono); color: var(--muted);
+    letter-spacing: 0.1em; text-transform: uppercase; padding: 0 8px; margin-bottom: 5px;
+  }
+  .agent-btn {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px;
+    border: 1px solid transparent; background: transparent; color: var(--muted);
+    border-radius: 8px; cursor: pointer; text-align: left; font-family: var(--font);
+    font-size: 13px; transition: all 0.15s;
+  }
+  .agent-btn:hover { background: var(--surface2); color: var(--text); }
+  .agent-btn.active { background: var(--accent-dim); color: var(--text); border-color: var(--accent-dim2); }
+  .agent-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .agent-info { flex: 1; min-width: 0; }
+  .agent-btn-name { font-weight: 500; font-size: 13px; line-height: 1; }
+  .agent-btn-role { font-size: 10px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .agent-btn.active .agent-btn-role { color: var(--accent); }
+  .agent-indicator { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.12); flex-shrink: 0; }
+  .agent-btn.active .agent-indicator { background: var(--accent); }
+  .sidebar-divider { height: 1px; background: var(--border); margin: 10px 12px; }
+  .sidebar-footer { padding: 12px 20px; margin-top: auto; }
+  .sidebar-footer-text { font-size: 10px; color: var(--muted); font-family: var(--mono); line-height: 1.7; }
+
+  /* MAIN */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* HOME */
+  #home-view {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    flex: 1; padding: 40px 28px; text-align: center;
+  }
+  .home-eg {
+    font-size: 64px; font-weight: 700; letter-spacing: -3px;
+    background: linear-gradient(135deg, var(--accent) 0%, #f0a060 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 6px;
+  }
+  .home-tagline { font-size: 13px; color: var(--muted); margin-bottom: 48px; font-family: var(--mono); }
+  .home-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; max-width: 580px; margin-bottom: 16px; }
+  .home-grid-bottom { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; max-width: 580px; margin-bottom: 36px; }
+  .home-agent-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 12px; cursor: pointer; transition: all 0.2s; text-align: left;
+  }
+  .home-agent-card:hover { border-color: var(--border2); background: var(--surface2); transform: translateY(-2px); }
+  .home-agent-card.ceo { border-color: rgba(251,191,36,0.2); background: rgba(251,191,36,0.05); }
+  .home-agent-card.ceo:hover { border-color: rgba(251,191,36,0.4); }
+  .home-card-avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; margin-bottom: 10px; }
+  .home-card-name { font-size: 13px; font-weight: 500; margin-bottom: 2px; }
+  .home-card-role { font-size: 9px; color: var(--muted); font-family: var(--mono); }
+  .home-intro { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  .home-intro strong { color: var(--accent); font-weight: 500; }
+
+  /* AGENT VIEW */
+  #agent-view { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+  .agent-header {
+    padding: 18px 28px 14px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: flex-start; justify-content: space-between;
+    flex-shrink: 0; background: var(--bg);
+  }
+  .agent-header-left { display: flex; align-items: center; gap: 14px; }
+  .agent-avatar-lg { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; }
+  .agent-title { font-size: 16px; font-weight: 500; letter-spacing: -0.3px; }
+  .agent-subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .agent-tags { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
+  .tag { font-size: 10px; font-family: var(--mono); padding: 3px 8px; border-radius: 4px; background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+  .tag.accent { background: var(--accent-dim); color: var(--accent); border-color: var(--accent-dim2); }
+  .tag.gold { background: var(--gold-dim); color: var(--gold); border-color: rgba(251,191,36,0.3); }
+  .header-actions { display: flex; gap: 8px; align-items: center; }
+  .clear-btn { font-size: 11px; font-family: var(--mono); color: var(--muted); background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; cursor: pointer; transition: all 0.15s; }
+  .clear-btn:hover { border-color: var(--border2); color: var(--text); }
+  .submit-btn {
+    font-size: 11px; font-family: var(--mono); color: var(--gold);
+    background: var(--gold-dim); border: 1px solid rgba(251,191,36,0.3);
+    border-radius: 6px; padding: 5px 12px; cursor: pointer; transition: all 0.15s;
+  }
+  .submit-btn:hover { background: rgba(251,191,36,0.15); }
+
+  /* TOOL BAR */
+  .tool-bar { padding: 10px 28px; border-bottom: 1px solid var(--border); display: none; align-items: center; gap: 10px; background: var(--surface); flex-shrink: 0; }
+  .tool-bar.visible { display: flex; }
+  .tool-label { font-size: 10px; font-family: var(--mono); color: var(--muted); white-space: nowrap; }
+  .tool-bar input { flex: 1; background: var(--bg); border: 1px solid var(--border2); border-radius: 8px; padding: 7px 12px; color: var(--text); font-family: var(--mono); font-size: 12px; outline: none; transition: border-color 0.15s; }
+  .tool-bar input:focus { border-color: var(--accent); }
+  .tool-bar input::placeholder { color: var(--muted); }
+  .tool-btn { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-family: var(--font); font-weight: 500; cursor: pointer; white-space: nowrap; transition: opacity 0.15s; }
+  .tool-btn:hover { opacity: 0.85; }
+
+  /* CHAT */
+  .chat-area { flex: 1; overflow-y: auto; padding: 24px 28px; display: flex; flex-direction: column; gap: 14px; scroll-behavior: smooth; }
+  .chat-area::-webkit-scrollbar { width: 4px; }
+  .chat-area::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .msg { display: flex; gap: 10px; animation: fadeUp 0.25s ease; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  .msg.user { flex-direction: row-reverse; }
+  .msg-avatar { width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+  .msg-avatar.user-av { background: var(--surface2); color: var(--muted); border: 1px solid var(--border2); }
+  .msg-content { display: flex; flex-direction: column; max-width: 72%; }
+  .msg.user .msg-content { align-items: flex-end; }
+  .msg-bubble { padding: 11px 15px; border-radius: 14px; font-size: 13.5px; line-height: 1.65; border: 1px solid var(--border); }
+  .msg.user .msg-bubble { background: var(--surface2); border-radius: 14px 4px 14px 14px; }
+  .msg.agent .msg-bubble { background: var(--surface); border-radius: 4px 14px 14px 14px; }
+  .msg-time { font-size: 10px; color: var(--muted); font-family: var(--mono); margin-top: 4px; padding: 0 2px; }
+  .typing { display: flex; gap: 4px; align-items: center; padding: 13px 15px; }
+  .typing span { width: 6px; height: 6px; background: var(--muted); border-radius: 50%; animation: bounce 1.2s infinite; }
+  .typing span:nth-child(2) { animation-delay: 0.15s; }
+  .typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-5px)} }
+
+  /* VERDICT CARD (Alessandro) */
+  .verdict-card { background: var(--surface); border: 1px solid var(--border2); border-radius: 12px; overflow: hidden; width: 100%; max-width: 80%; }
+  .verdict-header { padding: 10px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+  .verdict-badge { font-size: 10px; font-family: var(--mono); padding: 3px 8px; border-radius: 4px; font-weight: 500; }
+  .verdict-badge.ok { background: var(--green-dim); color: var(--green); border: 1px solid rgba(62,207,142,0.2); }
+  .verdict-badge.non { background: var(--red-dim); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
+  .verdict-badge.ajust { background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(251,191,36,0.2); }
+  .verdict-body { padding: 14px 16px; font-size: 13px; line-height: 1.65; color: var(--text); }
+  .verdict-agent { font-size: 10px; font-family: var(--mono); color: var(--muted); }
+
+  /* PROPOSITIONS VIEW (Alessandro) */
+  .props-list { padding: 16px 28px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; flex: 1; }
+  .prop-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .prop-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .prop-agent-name { font-size: 12px; font-weight: 500; }
+  .prop-date { font-size: 10px; font-family: var(--mono); color: var(--muted); }
+  .prop-content { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 12px; }
+  .prop-verdict { display: flex; gap: 8px; }
+  .prop-btn { font-size: 11px; font-family: var(--mono); padding: 4px 12px; border-radius: 6px; cursor: pointer; border: 1px solid; transition: all 0.15s; }
+  .prop-btn.green { color: var(--green); border-color: rgba(62,207,142,0.3); background: var(--green-dim); }
+  .prop-btn.red { color: var(--red); border-color: rgba(248,113,113,0.3); background: var(--red-dim); }
+  .prop-btn.gold { color: var(--gold); border-color: rgba(251,191,36,0.3); background: var(--gold-dim); }
+  .prop-btn:hover { opacity: 0.8; }
+  .no-props { text-align: center; color: var(--muted); font-family: var(--mono); font-size: 12px; padding: 40px; }
+
+  /* INPUT */
+  .chat-input-wrap { padding: 14px 28px 18px; border-top: 1px solid var(--border); flex-shrink: 0; background: var(--bg); }
+  .chat-input-row { display: flex; gap: 10px; align-items: flex-end; background: var(--surface); border: 1px solid var(--border2); border-radius: 12px; padding: 10px 12px 10px 16px; transition: border-color 0.15s; }
+  .chat-input-row:focus-within { border-color: var(--accent); }
+  .chat-textarea { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-family: var(--font); font-size: 13.5px; resize: none; line-height: 1.5; max-height: 120px; min-height: 20px; }
+  .chat-textarea::placeholder { color: var(--muted); }
+  .send-btn { width: 32px; height: 32px; background: var(--accent); border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity 0.15s; }
+  .send-btn:hover { opacity: 0.85; }
+  .send-btn svg { width: 14px; height: 14px; }
+  .input-hint { font-size: 10px; font-family: var(--mono); color: var(--muted); margin-top: 5px; padding: 0 2px; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">EG</div>
+      <div>
+        <div class="brand-name">Edmilson Garcia</div>
+        <div class="brand-sub">STUDIO COMMAND CENTER</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="api-input-wrap">
+        <input type="password" id="api-key-input" placeholder="Clé API Anthropic (sk-ant-...)" />
+        <button class="save-btn" onclick="saveApiKey()">Sauvegarder</button>
+      </div>
+      <div class="status-pill">
+        <div class="status-dot"></div>
+        <span id="status-text">6 agents actifs</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-label">Direction</div>
+        <button class="agent-btn" onclick="switchAgent('alessandro')" id="btn-alessandro">
+          <div class="agent-avatar" style="background:rgba(251,191,36,0.15);color:#fbbf24;">A</div>
+          <div class="agent-info">
+            <div class="agent-btn-name">Alessandro</div>
+            <div class="agent-btn-role">Directeur Général</div>
+          </div>
+          <div class="agent-indicator"></div>
+        </button>
+      </div>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Équipe</div>
+        <button class="agent-btn" onclick="switchAgent('marcus')" id="btn-marcus">
+          <div class="agent-avatar" style="background:rgba(224,123,57,0.15);color:#E07B39;">M</div>
+          <div class="agent-info"><div class="agent-btn-name">Marcus</div><div class="agent-btn-role">Sales & Acquisition</div></div>
+          <div class="agent-indicator"></div>
+        </button>
+        <button class="agent-btn" onclick="switchAgent('sofia')" id="btn-sofia">
+          <div class="agent-avatar" style="background:rgba(139,92,246,0.15);color:#a78bfa;">S</div>
+          <div class="agent-info"><div class="agent-btn-name">Sofia</div><div class="agent-btn-role">Brand Strategy</div></div>
+          <div class="agent-indicator"></div>
+        </button>
+        <button class="agent-btn" onclick="switchAgent('lea')" id="btn-lea">
+          <div class="agent-avatar" style="background:rgba(62,207,142,0.15);color:#3ecf8e;">L</div>
+          <div class="agent-info"><div class="agent-btn-name">Léa</div><div class="agent-btn-role">Pricing & Offre</div></div>
+          <div class="agent-indicator"></div>
+        </button>
+        <button class="agent-btn" onclick="switchAgent('dante')" id="btn-dante">
+          <div class="agent-avatar" style="background:rgba(59,130,246,0.15);color:#60a5fa;">D</div>
+          <div class="agent-info"><div class="agent-btn-name">Dante</div><div class="agent-btn-role">SEO & Visibilité</div></div>
+          <div class="agent-indicator"></div>
+        </button>
+        <button class="agent-btn" onclick="switchAgent('iris')" id="btn-iris">
+          <div class="agent-avatar" style="background:rgba(244,114,182,0.15);color:#f472b6;">I</div>
+          <div class="agent-info"><div class="agent-btn-name">Iris</div><div class="agent-btn-role">Client Experience</div></div>
+          <div class="agent-indicator"></div>
+        </button>
+      </div>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section">
+        <div class="sidebar-label">Navigation</div>
+        <button class="agent-btn" onclick="switchAgent('home')" id="btn-home">
+          <div class="agent-avatar" style="background:var(--surface2);color:var(--muted);font-size:14px;">⌂</div>
+          <div class="agent-info"><div class="agent-btn-name">Accueil</div><div class="agent-btn-role">Vue d'ensemble</div></div>
+        </button>
+      </div>
+      <div class="sidebar-footer">
+        <div class="sidebar-footer-text">EG Studio v4.0<br>Claude Sonnet 4<br>Supabase backend</div>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main">
+
+      <!-- HOME -->
+      <div id="home-view">
+        <div class="home-eg">EG</div>
+        <div class="home-tagline">studio command center · edmilson garcia</div>
+        <div class="home-grid">
+          <div class="home-agent-card ceo" onclick="switchAgent('alessandro')" style="grid-column: span 3;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div class="home-card-avatar" style="background:rgba(251,191,36,0.15);color:#fbbf24;width:42px;height:42px;font-size:15px;">A</div>
+              <div>
+                <div class="home-card-name" style="font-size:14px;">Alessandro — Directeur Général</div>
+                <div class="home-card-role">Valide les propositions de l'équipe · Donne les directives stratégiques</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="home-grid">
+          <div class="home-agent-card" onclick="switchAgent('marcus')">
+            <div class="home-card-avatar" style="background:rgba(224,123,57,0.15);color:#E07B39;">M</div>
+            <div class="home-card-name">Marcus</div><div class="home-card-role">Sales & Acquisition</div>
+          </div>
+          <div class="home-agent-card" onclick="switchAgent('sofia')">
+            <div class="home-card-avatar" style="background:rgba(139,92,246,0.15);color:#a78bfa;">S</div>
+            <div class="home-card-name">Sofia</div><div class="home-card-role">Brand Strategy</div>
+          </div>
+          <div class="home-agent-card" onclick="switchAgent('lea')">
+            <div class="home-card-avatar" style="background:rgba(62,207,142,0.15);color:#3ecf8e;">L</div>
+            <div class="home-card-name">Léa</div><div class="home-card-role">Pricing & Offre</div>
+          </div>
+          <div class="home-agent-card" onclick="switchAgent('dante')">
+            <div class="home-card-avatar" style="background:rgba(59,130,246,0.15);color:#60a5fa;">D</div>
+            <div class="home-card-name">Dante</div><div class="home-card-role">SEO & Visibilité</div>
+          </div>
+          <div class="home-agent-card" onclick="switchAgent('iris')">
+            <div class="home-card-avatar" style="background:rgba(244,114,182,0.15);color:#f472b6;">I</div>
+            <div class="home-card-name">Iris</div><div class="home-card-role">Client Experience</div>
+          </div>
+        </div>
+        <div class="home-intro">Commence par <strong>Marcus</strong> — il te trouve des clients. Soumets à <strong>Alessandro</strong> pour validation.</div>
+      </div>
+
+      <!-- AGENT VIEW -->
+      <div id="agent-view">
+        <div class="agent-header">
+          <div class="agent-header-left">
+            <div id="header-avatar" class="agent-avatar-lg"></div>
+            <div>
+              <div id="header-name" class="agent-title"></div>
+              <div id="header-role" class="agent-subtitle"></div>
+              <div class="agent-tags" id="header-tags"></div>
+            </div>
+          </div>
+          <div class="header-actions">
+            <button class="submit-btn" id="submit-btn" onclick="submitToAlessandro()" style="display:none;">→ Soumettre à Alessandro</button>
+            <button class="clear-btn" onclick="clearChat()">effacer</button>
+          </div>
+        </div>
+
+        <!-- Tool bars -->
+        <div class="tool-bar" id="tool-bar-seo">
+          <span class="tool-label">URL →</span>
+          <input type="text" id="seo-url-input" placeholder="https://site-client.fr — analyse SEO" />
+          <button class="tool-btn" onclick="runSeoAnalysis()">Analyser →</button>
+        </div>
+        <div class="tool-bar" id="tool-bar-scrape">
+          <span class="tool-label">PROSPECTS →</span>
+          <input type="text" id="scrape-city" placeholder="Ville" style="max-width:110px;" />
+          <input type="text" id="scrape-trade" placeholder="Métier (ex: plombier)" />
+          <button class="tool-btn" onclick="runScrape()">Trouver →</button>
+        </div>
+
+        <!-- Chat normal -->
+        <div class="chat-area" id="chat-area" style="display:flex;"></div>
+
+        <!-- Vue propositions Alessandro -->
+        <div class="props-list" id="props-list" style="display:none;"></div>
+
+        <div class="chat-input-wrap" id="chat-input-wrap">
+          <div class="chat-input-row">
+            <textarea class="chat-textarea" id="user-input" rows="1" placeholder="Écris ici..." onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+            <button class="send-btn" onclick="sendMessage()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+          <div class="input-hint">↵ envoyer · shift+↵ nouvelle ligne</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── SUPABASE ──
+const SUPABASE_URL = 'https://hmpjljyfcpihjoimlwir.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhtcGpsanlmY3BpaGpvaW1sd2lyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4MDc2NzIsImV4cCI6MjA5NTM4MzY3Mn0.iojN2wOep3CM8Qm018DLp44VsZuuQ7ZEprJeO1HByzs';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ── CONFIG AGENTS ──
+const AGENTS = {
+  alessandro: {
+    name: 'Alessandro', role: 'Directeur Général · Valide les propositions de l\'équipe',
+    avatar: 'A', color: '#fbbf24', bg: 'rgba(251,191,36,0.15)',
+    tags: [['CEO', true], ['validation', false], ['stratégie', false], ['décision finale', false]],
+    tool: null, isCEO: true,
+    welcome: `Bonjour Edmilson. Alessandro ici.\n\nMon rôle est simple : je valide ou recadre ce que l'équipe propose. Rien ne sort sans mon aval.\n\nTu peux me parler stratégie directement, ou soumettre les propositions de l'équipe via le bouton "Soumettre à Alessandro" dans chaque agent.\n\nQu'est-ce qu'on valide aujourd'hui ?`,
+    system: `Tu es Alessandro, le Directeur Général d'Edmilson Garcia Studio. Tu es le boss — direct, exigeant, stratégique. Tu parles à Edmilson Garcia, web designer freelance à Lyon qui crée des sites Framer pour artisans locaux.
+
+Contexte complet de l'entreprise :
+- Offre : Starter 990€ / Pro 1500€ / Growth 1990€ / Maintenance 90€/mois
+- Cible : artisans locaux Lyon et région (plombiers, électriciens, peintres, menuisiers...)
+- Capacité : 2 sites max par mois jusqu'en août 2026 (alternance LCL)
+- Vision : devenir la référence web design en Europe sous le nom Edmilson Garcia
+- Outil de prospection : script Python qui scrape Google Maps, filtre sans site + numéro 06/07, cherche dirigeant sur Pappers
+
+Quand l'équipe te soumet une proposition :
+- Tu donnes un verdict clair : ✅ VALIDÉ / ❌ REFUSÉ / ⚠️ À AJUSTER
+- Tu expliques pourquoi en 2-3 phrases max
+- Tu donnes une directive concrète si besoin
+
+Tu es dur mais juste. Tu penses résultats. Réponds en français.`
+  },
+  marcus: {
+    name: 'Marcus', role: 'Sales & Acquisition · Spécialiste prospection artisans',
+    avatar: 'M', color: '#E07B39', bg: 'rgba(224,123,57,0.15)',
+    tags: [['priorité #1', true], ['prospection', false], ['scripts', false], ['scraping', false]],
+    tool: 'scrape',
+    welcome: `Salut Edmilson. Marcus ici.\n\nJe suis ton spécialiste acquisition. On a déjà :\n→ Offre structurée : Starter 990€ / Pro 1500€ / Growth 1990€\n→ Script Python qui scrape Google Maps (06/07 uniquement, sans site, + dirigeant Pappers)\n→ 3 prospects plombiers Lyon identifiés\n\nOn continue la prospection ou on travaille les scripts de contact ?`,
+    system: `Tu es Marcus, Sales & Acquisition d'Edmilson Garcia Studio. Expert prospection artisans locaux Lyon.
+
+Contexte :
+- Offre : Starter 990€ / Pro 1500€ / Growth 1990€ / Maintenance 90€/mois
+- Cible : artisans sans site web (plombiers, électriciens, peintres, menuisiers, maçons...)
+- Outil : script Python scraping Google Maps → filtre 06/07 + sans site + dirigeant Pappers
+- Capacité : 2 sites/mois max
+- Zone : Lyon 1-9 + Villeurbanne, Vénissieux, Bron, Caluire, Saint-Priest...
+- Prospects trouvés : NPS Plomberie (06 60 92 58 60), VES Plomberie (06 24 44 61 76), PROXI TRAVAUX SERVICE (07 43 65 57 32)
+
+Tu génères des scripts SMS/téléphone prêts à copier-coller, courts, humains, pas commerciaux. Tu analyses les canaux d'acquisition. Réponds en français, direct et actionnable.`
+  },
+  sofia: {
+    name: 'Sofia', role: 'Brand Strategist · Architecte de la marque Edmilson Garcia',
+    avatar: 'S', color: '#a78bfa', bg: 'rgba(139,92,246,0.15)',
+    tags: [['identité', false], ['positionnement', false], ['long terme', false], ['Europe', true]],
+    tool: null,
+    welcome: `Bonjour Edmilson. Sofia ici.\n\nObjectif : que "Edmilson Garcia" devienne la référence web design en Europe. On construit ça brique par brique.\n\nOù en es-tu sur ta présence en ligne ? Site perso, réseaux, portfolio ?`,
+    system: `Tu es Sofia, Brand Strategist d'Edmilson Garcia Studio.
+
+Contexte :
+- Edmilson Garcia, web designer Framer, Lyon, d'origine portugaise
+- Alternance LCL jusqu'août 2026, vise Genève ensuite
+- Vision : être connu dans toute l'Europe comme le web designer à contacter
+- Offre actuelle : sites Framer pour artisans locaux (point d'entrée)
+- Nom de marque : Edmilson Garcia (assumé, long terme)
+
+Tu construis l'identité, le positionnement, le storytelling. Tu penses différenciation et cohérence. Réponds en français.`
+  },
+  lea: {
+    name: 'Léa', role: 'Pricing & Offre · Structure ton business pour scaler',
+    avatar: 'L', color: '#3ecf8e', bg: 'rgba(62,207,142,0.15)',
+    tags: [['pricing', true], ['packages', false], ['offre validée', false]],
+    tool: null,
+    welcome: `Coucou Edmilson. Léa ici.\n\nOffre validée :\n→ Starter 990€ — 3-5 pages, livraison 10j, 1 révision\n→ Pro 1500€ — 5-8 pages, formation 1h, livraison 14j, 2 révisions\n→ Growth 1990€ — Pro + SEO local + Google Business + 3 mois maintenance\n→ Maintenance 90€/mois après\n\nOn affine quelque chose ou on passe à autre chose ?`,
+    system: `Tu es Léa, Pricing & Offre d'Edmilson Garcia Studio.
+
+Offre validée :
+- Starter 990€ : 3-5 pages Framer, responsive, livraison 10j, 1 révision
+- Pro 1500€ : 5-8 pages, formation 1h, livraison 14j, 2 révisions
+- Growth 1990€ : Pro + SEO local + Google Business Profile + 3 mois maintenance incluse
+- Maintenance : 90€/mois
+- Capacité : 2 sites max/mois
+
+Prix plancher absolu : 990€. Jamais en dessous. Tu raisonnes valeur perçue. Réponds en français avec des chiffres concrets.`
+  },
+  dante: {
+    name: 'Dante', role: 'SEO & Visibilité · Référencement local et analyse de sites',
+    avatar: 'D', color: '#60a5fa', bg: 'rgba(59,130,246,0.15)',
+    tags: [['SEO local', true], ['analyse URL', false], ['Google Business', false]],
+    tool: 'seo',
+    welcome: `Bonjour. Dante ici.\n\nJe m'occupe du SEO local pour tes clients artisans et de ta propre visibilité.\n\nDonne-moi une URL à analyser via la barre en haut, ou pose-moi une question sur le référencement local.`,
+    system: `Tu es Dante, SEO & Visibilité d'Edmilson Garcia Studio. Expert SEO local pour artisans en France.
+
+Tu maîtrises : Google Business Profile, balises title/meta, Core Web Vitals, maillage interne, contenu localisé, citations locales. Tu guides avec des checklists actionnables. Réponds en français.`
+  },
+  iris: {
+    name: 'Iris', role: 'Client Experience · Système qui transforme 2 clients en 4',
+    avatar: 'I', color: '#f472b6', bg: 'rgba(244,114,182,0.15)',
+    tags: [['onboarding', false], ['livraison', false], ['bouche à oreille', true]],
+    tool: null,
+    welcome: `Salut Edmilson. Iris ici.\n\nTu as 2 sites par mois. Chaque client doit devenir ambassadeur.\n\nOn construit le process qui fait que tes artisans parlent de toi à leurs collègues. Onboarding, suivi, livraison mémorable.\n\nOn commence ?`,
+    system: `Tu es Iris, Client Experience d'Edmilson Garcia Studio. 2 sites Framer/mois pour artisans lyonnais.
+
+Objectif : chaque client devient ambassadeur. Les artisans se parlent entre eux — un électricien satisfait recommande à son plombier copain.
+
+Tu construis les process client (onboarding, brief, communication, livraison, suivi). Langage simple, pas de jargon web. Templates concrets. Réponds en français.`
+  }
+};
+
+let currentAgent = null;
+let isTyping = false;
+let apiKey = localStorage.getItem('eg_api_key') || '';
+
+// ── INIT ──
+function initApiKey() {
+  if (apiKey) {
+    document.getElementById('api-key-input').value = apiKey;
+  }
+}
+
+function saveApiKey() {
+  apiKey = document.getElementById('api-key-input').value.trim();
+  if (!apiKey) return;
+  localStorage.setItem('eg_api_key', apiKey);
+  document.getElementById('status-text').textContent = '6 agents actifs ✓';
+  setTimeout(() => { document.getElementById('status-text').textContent = '6 agents actifs'; }, 2000);
+}
+
+// ── NAVIGATION ──
+function switchAgent(id) {
+  document.querySelectorAll('.agent-btn').forEach(b => b.classList.remove('active'));
+
+  if (id === 'home') {
+    document.getElementById('home-view').style.display = 'flex';
+    document.getElementById('agent-view').style.display = 'none';
+    document.getElementById('btn-home') && document.getElementById('btn-home').classList.add('active');
+    currentAgent = null;
+    return;
+  }
+
+  document.getElementById('btn-' + id) && document.getElementById('btn-' + id).classList.add('active');
+  document.getElementById('home-view').style.display = 'none';
+  document.getElementById('agent-view').style.display = 'flex';
+  currentAgent = id;
+
+  const ag = AGENTS[id];
+  const av = document.getElementById('header-avatar');
+  av.textContent = ag.avatar;
+  av.style.background = ag.bg;
+  av.style.color = ag.color;
+  document.getElementById('header-name').textContent = ag.name;
+  document.getElementById('header-role').textContent = ag.role;
+  document.getElementById('header-tags').innerHTML = ag.tags.map(([t, a]) =>
+    `<span class="tag${a ? (id === 'alessandro' ? ' gold' : ' accent') : ''}">${t}</span>`).join('');
+
+  // Tool bars
+  document.getElementById('tool-bar-seo').classList.toggle('visible', ag.tool === 'seo');
+  document.getElementById('tool-bar-scrape').classList.toggle('visible', ag.tool === 'scrape');
+
+  // Submit button (pas pour Alessandro)
+  document.getElementById('submit-btn').style.display = ag.isCEO ? 'none' : 'inline-block';
+
+  // Vue Alessandro spéciale
+  if (ag.isCEO) {
+    document.getElementById('chat-area').style.display = 'flex';
+    document.getElementById('props-list').style.display = 'none';
+    document.getElementById('chat-input-wrap').style.display = 'block';
+  } else {
+    document.getElementById('chat-area').style.display = 'flex';
+    document.getElementById('props-list').style.display = 'none';
+    document.getElementById('chat-input-wrap').style.display = 'block';
+  }
+
+  document.getElementById('user-input').placeholder = `Parle à ${ag.name}...`;
+  loadConversation();
+}
+
+// ── SUPABASE : CHARGER CONVERSATION ──
+async function loadConversation() {
+  if (!currentAgent) return;
+  const area = document.getElementById('chat-area');
+  area.innerHTML = '';
+
+  try {
+    const { data, error } = await sb
+      .from('conversations')
+      .select('*')
+      .eq('agent_id', currentAgent)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      // Message de bienvenue
+      await saveMessage(currentAgent, 'assistant', AGENTS[currentAgent].welcome);
+      addMsgToDOM({ role: 'assistant', content: AGENTS[currentAgent].welcome, created_at: new Date().toISOString() });
+    } else {
+      data.forEach(m => addMsgToDOM(m));
+    }
+  } catch(e) {
+    // Fallback si Supabase non configuré
+    addMsgToDOM({ role: 'assistant', content: AGENTS[currentAgent].welcome, created_at: new Date().toISOString() });
+  }
+
+  scrollBottom();
+}
+
+async function saveMessage(agentId, role, content) {
+  try {
+    await sb.from('conversations').insert({ agent_id: agentId, role, content });
+  } catch(e) {}
+}
+
+// ── DOM ──
+function addMsgToDOM(m) {
+  const area = document.getElementById('chat-area');
+  const ag = AGENTS[currentAgent];
+  const isUser = m.role === 'user';
+  const div = document.createElement('div');
+  div.className = 'msg ' + (isUser ? 'user' : 'agent');
+  const t = new Date(m.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const avHtml = isUser
+    ? `<div class="msg-avatar user-av">EG</div>`
+    : `<div class="msg-avatar" style="background:${ag.bg};color:${ag.color};">${ag.avatar}</div>`;
+  const text = (m.content || '').replace(/\n/g, '<br>').replace(/→/g, `<span style="color:var(--accent)">→</span>`);
+  div.innerHTML = `${avHtml}<div class="msg-content"><div class="msg-bubble">${text}</div><div class="msg-time">${t}</div></div>`;
+  area.appendChild(div);
+}
+
+function showTyping() {
+  const area = document.getElementById('chat-area');
+  const ag = AGENTS[currentAgent];
+  const div = document.createElement('div');
+  div.className = 'msg agent'; div.id = 'typing';
+  div.innerHTML = `<div class="msg-avatar" style="background:${ag.bg};color:${ag.color};">${ag.avatar}</div>
+    <div class="msg-content"><div class="msg-bubble"><div class="typing"><span></span><span></span><span></span></div></div></div>`;
+  area.appendChild(div);
+  scrollBottom();
+}
+function hideTyping() { const t = document.getElementById('typing'); if (t) t.remove(); }
+function scrollBottom() { const a = document.getElementById('chat-area'); a.scrollTop = a.scrollHeight; }
+
+// ── API CLAUDE ──
+async function callClaude(system, messages) {
+  if (!apiKey) { alert('Entre ta clé API Anthropic en haut.'); return null; }
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, system, messages })
+  });
+  const data = await resp.json();
+  return data.content?.[0]?.text || null;
+}
+
+// ── SEND MESSAGE ──
+async function sendMessage() {
+  if (isTyping || !currentAgent) return;
+  const input = document.getElementById('user-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = ''; autoResize(input);
+
+  const now = new Date().toISOString();
+  await saveMessage(currentAgent, 'user', text);
+  addMsgToDOM({ role: 'user', content: text, created_at: now });
+
+  isTyping = true; showTyping();
+
+  const ag = AGENTS[currentAgent];
+
+  // Récupère historique depuis Supabase
+  let history = [];
+  try {
+    const { data } = await sb.from('conversations').select('role,content').eq('agent_id', currentAgent).order('created_at', { ascending: true });
+    history = (data || []).map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }));
+  } catch(e) {
+    history = [{ role: 'user', content: text }];
+  }
+
+  try {
+    const reply = await callClaude(ag.system, history);
+    hideTyping(); isTyping = false;
+    const replyText = reply || 'Erreur : réponse vide.';
+    await saveMessage(currentAgent, 'assistant', replyText);
+    addMsgToDOM({ role: 'assistant', content: replyText, created_at: new Date().toISOString() });
+    scrollBottom();
+  } catch(e) {
+    hideTyping(); isTyping = false;
+    addMsgToDOM({ role: 'assistant', content: 'Erreur de connexion.', created_at: new Date().toISOString() });
+  }
+}
+
+// ── SOUMETTRE À ALESSANDRO ──
+async function submitToAlessandro() {
+  if (!currentAgent || currentAgent === 'alessandro') return;
+  const ag = AGENTS[currentAgent];
+
+  // Récupère les 5 derniers messages de la conversation
+  let { data } = await sb.from('conversations').select('role,content').eq('agent_id', currentAgent).order('created_at', { ascending: false }).limit(6);
+  if (!data || data.length === 0) { alert('Pas encore de conversation à soumettre.'); return; }
+  data = data.reverse();
+
+  const summary = data.map(m => `[${m.role === 'user' ? 'Edmilson' : ag.name}] ${m.content}`).join('\n\n');
+  const contenu = `Proposition de ${ag.name} (${ag.role}) :\n\n${summary}`;
+
+  try {
+    await sb.from('propositions').insert({ agent_id: currentAgent, agent_name: ag.name, contenu });
+    alert(`✓ Soumis à Alessandro. Va dans l'onglet Alessandro pour voir son verdict.`);
+  } catch(e) {
+    alert('Erreur lors de la soumission.');
+  }
+}
+
+// ── SEO TOOL ──
+async function runSeoAnalysis() {
+  const url = document.getElementById('seo-url-input').value.trim();
+  if (!url || isTyping) return;
+  const now = new Date().toISOString();
+  const userMsg = `Analyse SEO : ${url}`;
+  await saveMessage('dante', 'user', userMsg);
+  addMsgToDOM({ role: 'user', content: userMsg, created_at: now });
+  isTyping = true; showTyping();
+  const prompt = `Fais une analyse SEO complète de ce site : ${url}\n\nDonne : score /100, 5 actions prioritaires, analyse title/meta/H1/mobile/vitesse/Google Business/contenu local.`;
+  try {
+    const reply = await callClaude(AGENTS.dante.system, [{ role: 'user', content: prompt }]);
+    hideTyping(); isTyping = false;
+    await saveMessage('dante', 'assistant', reply);
+    addMsgToDOM({ role: 'assistant', content: reply, created_at: new Date().toISOString() });
+    document.getElementById('seo-url-input').value = '';
+    scrollBottom();
+  } catch(e) { hideTyping(); isTyping = false; }
+}
+
+// ── SCRAPE TOOL ──
+async function runScrape() {
+  const city = document.getElementById('scrape-city').value.trim();
+  const trade = document.getElementById('scrape-trade').value.trim();
+  if (!city || !trade || isTyping) return;
+  const userMsg = `Trouve des ${trade} à ${city} sans site web`;
+  const now = new Date().toISOString();
+  await saveMessage('marcus', 'user', userMsg);
+  addMsgToDOM({ role: 'user', content: userMsg, created_at: now });
+  isTyping = true; showTyping();
+  const prompt = `Génère une liste fictive réaliste de 8 artisans "${trade}" à "${city}" sans site web. JSON uniquement : {"prospects":[{"nom":"...","telephone":"06 XX XX XX XX","ville":"${city}"}]}`;
+  try {
+    const raw = await callClaude('JSON valide uniquement, aucun texte autour.', [{ role: 'user', content: prompt }]);
+    hideTyping(); isTyping = false;
+    const parsed = JSON.parse((raw || '{}').replace(/```json|```/g, '').trim());
+    const prospects = parsed.prospects || [];
+    let html = `<div style="background:var(--surface);border:1px solid var(--border2);border-radius:10px;overflow:hidden;width:100%"><div style="background:var(--surface2);padding:9px 14px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border)"><span style="font-size:10px;font-family:var(--mono);color:var(--accent);text-transform:uppercase;letter-spacing:.08em">${trade} · ${city}</span><span style="font-size:10px;font-family:var(--mono);color:var(--green)">${prospects.length} prospects</span></div>`;
+    prospects.forEach((p, i) => { html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--border);font-size:12px"><span style="font-family:var(--mono);font-size:10px;color:var(--muted);width:16px">${i+1}</span><span style="font-weight:500;flex:1">${p.nom}</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted)">${p.telephone}</span><span style="font-size:9px;font-family:var(--mono);color:var(--green);background:var(--green-dim);padding:2px 6px;border-radius:4px">sans site</span></div>`; });
+    html += '</div>';
+    const area = document.getElementById('chat-area');
+    const wrap = document.createElement('div'); wrap.className = 'msg agent';
+    wrap.innerHTML = `<div class="msg-avatar" style="background:${AGENTS.marcus.bg};color:${AGENTS.marcus.color};">M</div><div class="msg-content" style="max-width:90%">${html}</div>`;
+    area.appendChild(wrap);
+    const note = `${prospects.length} prospects générés (exemples). En pratique utilise le script Python eg_prospector.py pour de vraies données.\n\nTu veux un script SMS personnalisé pour cette liste ?`;
+    await saveMessage('marcus', 'assistant', note);
+    addMsgToDOM({ role: 'assistant', content: note, created_at: new Date().toISOString() });
+    document.getElementById('scrape-city').value = '';
+    document.getElementById('scrape-trade').value = '';
+    scrollBottom();
+  } catch(e) { hideTyping(); isTyping = false; }
+}
+
+// ── UTILS ──
+async function clearChat() {
+  if (!currentAgent) return;
+  if (!confirm(`Effacer toute la conversation avec ${AGENTS[currentAgent].name} ?`)) return;
+  try {
+    await sb.from('conversations').delete().eq('agent_id', currentAgent);
+  } catch(e) {}
+  document.getElementById('chat-area').innerHTML = '';
+  await saveMessage(currentAgent, 'assistant', AGENTS[currentAgent].welcome);
+  addMsgToDOM({ role: 'assistant', content: AGENTS[currentAgent].welcome, created_at: new Date().toISOString() });
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+// ── START ──
+initApiKey();
+switchAgent('home');
+</script>
+</body>
+</html>
