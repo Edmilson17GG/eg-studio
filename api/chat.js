@@ -1,9 +1,3 @@
-export const config = {
-  api: {
-    bodyParser: true,
-  },
-};
-
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -15,28 +9,29 @@ export default async function handler(req, res) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return res.status(500).json({ error: 'Cle API manquante' });
 
+  // Lire le body manuellement comme stream
+  const rawBody = await new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', chunk => { data += chunk; });
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  });
+
+  let parsed;
   try {
-    // Parse le body manuellement si nécessaire
-    let body = req.body;
-    if (typeof body === 'string') {
-      body = JSON.parse(body);
-    }
-    if (!body) {
-      return res.status(400).json({ error: 'Body vide' });
-    }
+    parsed = JSON.parse(rawBody);
+  } catch(e) {
+    return res.status(400).json({ error: 'JSON invalide', raw: rawBody.slice(0, 100) });
+  }
 
-    // Construit le payload Anthropic proprement
-    const payload = {
-      model: 'claude-3-5-haiku-20241022',
-      max_tokens: body.max_tokens || 1000,
-      messages: body.messages || [],
-    };
+  const payload = {
+    model: 'claude-3-haiku-20240307',
+    max_tokens: parsed.max_tokens || 1000,
+    messages: parsed.messages || [],
+  };
+  if (parsed.system) payload.system = parsed.system;
 
-    // Ajoute system prompt si présent
-    if (body.system) {
-      payload.system = body.system;
-    }
-
+  try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -48,19 +43,11 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-
     if (!response.ok) {
-      console.error('Anthropic error:', JSON.stringify(data));
-      return res.status(response.status).json({ 
-        error: data.error?.message || 'Erreur Anthropic',
-        details: data 
-      });
+      return res.status(response.status).json({ error: data.error?.message, details: data });
     }
-
     return res.status(200).json(data);
-
   } catch (error) {
-    console.error('Proxy error:', error.message);
     return res.status(500).json({ error: error.message });
   }
 }
