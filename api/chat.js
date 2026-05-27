@@ -27,7 +27,7 @@ export default async function handler(req, res) {
 
     // Construit le payload Anthropic proprement
     const payload = {
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: body.max_tokens || 1000,
       messages: body.messages || [],
     };
